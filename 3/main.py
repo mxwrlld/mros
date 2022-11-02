@@ -28,14 +28,22 @@ def get_YU() -> np.ndarray:
                      [1, 0, 0, 0, 0, 1, 1, 0, 0]])
 
 
-def print_bin_vectors(f_name, f, s_name, s):
+def print_bin_vectors(f_name, f, f_mod_name, fm, s_name, s, s_mod_name, sm):
     fig = plt.figure(frameon=False)
-    fig.add_subplot(1, 2, 1)
+    fig.add_subplot(2, 4, 2)
     plt.title(f_name)
     plt.imshow(1 - f, cmap='gray')
-    fig.add_subplot(1, 2, 2)
+    fig.add_subplot(2, 4, 3)
+    plt.title(f_mod_name)
+    plt.imshow(1 - fm, cmap='gray')
+    fig.add_subplot(2, 4, 6)
     plt.title(s_name)
     plt.imshow(1 - s, cmap='gray')
+    fig.add_subplot(2, 4, 7)
+    plt.title(s_mod_name)
+    plt.imshow(1 - sm, cmap='gray')
+    mng = plt.get_current_fig_manager()
+    mng.window.state('zoomed')
     plt.show()
 
 
@@ -54,47 +62,39 @@ def calc_probabilities_matrix(vectors: np.ndarray):
     return np.sum(vectors, axis=0) / vectors.shape[0]
 
 
-def calc_math_expectation(p_0: np.ndarray, p_1: np.ndarray):
-    m_0, m_1 = 0, 0
-    for i in range(p_0.shape[0]):
-        for j in range(p_0.shape[1]):
-            m_0 += np.log(p_1[i][j] / (1 - p_1[i][j]) *
-                          (1 - p_0[i][j]) / p_0[i][j]) * p_0[i][j]
-            m_1 += np.log(p_1[i][j] / (1 - p_1[i][j]) *
-                          (1 - p_0[i][j]) / p_0[i][j]) * p_1[i][j]
+def calc_w_01(p_0: np.ndarray, p_1: np.ndarray):
+    return np.log((p_1 / (1 - p_1)) * ((1 - p_0) / p_0))
+
+
+def calc_math_expectations(p_0: np.ndarray, p_1: np.ndarray):
+    w = calc_w_01(p_0, p_1)
+    m_0 = np.sum(w * p_0)
+    m_1 = np.sum(w * p_1)
     return m_0, m_1
 
 
-def calc_std(p_0: np.ndarray, p_1: np.ndarray):
-    std_0, std_1 = 0, 0
-    for i in range(p_0.shape[0]):
-        for j in range(p_0.shape[1]):
-            std_0 += ((np.log(p_1[i][j] / (1 - p_1[i][j]) * (1 - p_0[i]
-                      [j]) / p_0[i][j])) ** 2) * p_0[i][j] * (1 - p_0[i][j])
-            std_1 += ((np.log(p_1[i][j] / (1 - p_1[i][j]) * (1 - p_0[i]
-                      [j]) / p_0[i][j])) ** 2) * p_1[i][j] * (1 - p_1[i][j])
-    return np.sqrt(std_0), np.sqrt(std_1)
+def calc_stds(p_0: np.ndarray, p_1: np.ndarray):
+    w = calc_w_01(p_0, p_1)
+    std_0 = np.sqrt(np.sum(w ** 2 * p_0 * (1 - p_0)))
+    std_1 = np.sqrt(np.sum(w ** 2 * p_1 * (1 - p_1)))
+    return std_0, std_1
 
 
 def calc_lyambda_tilda(p_0: np.ndarray, p_1: np.ndarray, P_0: float, P_1: float) -> float:
-    lyambda_tilda = 0
-    for i in range(0, p_0.shape[0]):
-        for j in range(0, p_0.shape[1]):
-            lyambda_tilda += np.log((1 - p_0[i][j]) / (1 - p_1[i][j]))
-    lyambda_tilda += np.log(P_1 / P_0)
+    lyambda_tilda = np.log(P_1 / P_0) + np.sum(np.log((1 - p_0) / (1 - p_1)))
     return lyambda_tilda
 
 
 def calc_Lyambda_tilda(vector: np.ndarray, p_0: np.ndarray, p_1: np.ndarray):
-    w_01 = np.log(p_0 / (1 - p_0) * (1 - p_1) / p_1)
-    return np.sum(vector * w_01)
+    w = calc_w_01(p_0, p_1)
+    return np.sum(vector * w)
 
 
 def classify_vector(vector: np.ndarray, p_0: np.ndarray, p_1: np.ndarray, lyambda_tilda: float) -> int:
     Lyambda_tilda = calc_Lyambda_tilda(vector, p_0, p_1)
     if Lyambda_tilda >= lyambda_tilda:
-        return 0
-    return 1
+        return 1
+    return 0
 
 
 def classify_vectors(vectors: np.ndarray, p_0: np.ndarray, p_1: np.ndarray, lyambda_tilda: float) -> np.ndarray:
@@ -105,14 +105,8 @@ def phi(x):
     return 0.5 * (1 + erf(x / np.sqrt(2)))
 
 
-def inv_phi(x):
-    return np.sqrt(2) * erfinv(2 * x - 1)
-
-
-def calc_theoretical_errors(p_0: np.ndarray, p_1: np.ndarray,
-                            m_0: np.ndarray, m_1: np.ndarray,
+def calc_theoretical_errors(m_0: np.ndarray, m_1: np.ndarray,
                             std_0: np.ndarray, std_1: np.ndarray,
-                            P_0: float, P_1: float,
                             lyambda_tilda: float):
     te_0 = 1 - phi((lyambda_tilda - m_0) / std_0)
     te_1 = phi((lyambda_tilda - m_1) / std_1)
@@ -135,14 +129,15 @@ if __name__ == "__main__":
     yas = generate_bin_vectors(ya, p, N)
     yus = generate_bin_vectors(yu, p, N)
     p_0, p_1 = calc_probabilities_matrix(yas), calc_probabilities_matrix(yus)
-    m_0, m_1 = calc_math_expectation(p_0, p_1)
-    std_0, std_1 = calc_std(p_0, p_1)
+    m_0, m_1 = calc_math_expectations(p_0, p_1)
+    std_0, std_1 = calc_stds(p_0, p_1)
     lyambda_tilda = calc_lyambda_tilda(p_0, p_1, P_0, P_1)
 
-    print_bin_vectors("Я", ya, "Вектор на основе Я", yas[0])
+    print_bin_vectors("Я", ya, "Вектор на основе Я",
+                      yas[0], "Ю", yu, "Вектор на основе Ю", yus[0])
     print("Ms: ", m_0, m_1)
     print("Stds: ", std_0, std_1)
-    print(lyambda_tilda)
+    print("λ`: ", lyambda_tilda)
     fig = plt.figure()
     x = np.arange(-100, 100, 0.001)
     plt.plot(x, norm.pdf(x, m_0, std_0), color='red', label='yas')
@@ -153,7 +148,7 @@ if __name__ == "__main__":
     plt.show()
 
     te_0, te_1 = calc_theoretical_errors(
-        p_0, p_1, m_0, m_1, std_0, std_1, P_0, P_1, lyambda_tilda)
+        m_0, m_1, std_0, std_1, lyambda_tilda)
     print("Теоритическая ошибка классификации для класса Я:", te_0)
     print("Теоритическая ошибка классификации для класса Ю:", te_1)
 
