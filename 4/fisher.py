@@ -27,6 +27,7 @@ class Fisher:
         return np.array([self.calc_decisive_function(np.array([[X[0, i]], [X[1, i]]]))
                          for i in range(X.shape[1])])
 
+    # Решающая граница
     def calc_decisive_boundary(self, x: float):
         return (- self.w[0, 0] * x - self.w_n) / self.w[1, 0]
 
