@@ -120,7 +120,7 @@ if __name__ == "__main__":
         "B_diff": {"ys": ys_std_d, "p0": calc_allha(cstdr_0_d, 1), "p1": calc_allha(cstdr_1_d, 0)}
     }
 
-    active_points = [1, 2]
+    active_points = [2]
     if 1 in active_points:
         # Равные корреляционные матрицы
         title = "Равные корреляционные матрицы"
