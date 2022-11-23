@@ -11,7 +11,6 @@ class STDMin:
     # Вектор весовых коэффициентов
     def __calc_w(self, u: np.ndarray, g: np.ndarray):
         w = la.inv(u @ u.T) @ u @ g
-        print(w)
         return w
 
     def __generate_training_sample(self, m: int, x_1: np.ndarray, x_2: np.ndarray):

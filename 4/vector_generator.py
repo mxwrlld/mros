@@ -14,15 +14,18 @@ def __calc_transform_matrix(B: np.ndarray):
     ])
 
 
-def uniform2standard_normal_distribution(N):
+def uniform2standard_normal_distribution(N, seed=None):
     Zs = np.zeros(shape=(n, N))
     mean, deviation = 1 / 2, 1 / np.sqrt(12)
     len_of_uniform = 200
+    #seeds = np.random.default_rng(seed=seed).integers(low=0, high=10000, size=len_of_uniform)
     for i in range(n):
         for j in range(N):
+            #uniform_distribution = np.random.default_rng(seed=seeds[j]).uniform(size=len_of_uniform)
             uniform_distribution = np.random.uniform(size=len_of_uniform)
             _sum = np.sum(uniform_distribution)
-            Zs[i, j] = (_sum - mean * len_of_uniform) / (deviation * np.sqrt(len_of_uniform))
+            Zs[i, j] = (_sum - mean * len_of_uniform) / \
+                (deviation * np.sqrt(len_of_uniform))
     return Zs
 
 
