@@ -1,36 +1,11 @@
-import os
 import numpy as np
-from numpy import linalg as la
 import matplotlib.pyplot as plt
-from vector_generator import generate_norm_vector
-from fisher import Fisher
-from stdmin import STDMin
-from robbinsmonro import RobbinsMonro
-from bayes import *
-
-
-def get_Ms():
-    M_1 = np.array([
-        [-1],
-        [1]
-    ])
-    M_2 = np.array([
-        [0],
-        [-1]
-    ])
-    return M_1, M_2
-
-
-def get_Bs():
-    B_1 = np.array([
-        [0.4, 0.3],
-        [0.3, 0.5]
-    ])
-    B_2 = np.array([
-        [0.3, 0],
-        [0, 0.3]
-    ])
-    return B_1, B_2
+import utils.constants as const
+from utils.vector_generator import generate_norm_vector
+from modules.bayes import *
+from modules.fisher import Fisher
+from modules.stdmin import STDMin
+from modules.robbinsmonro import RobbinsMonro
 
 
 def calc_alpha(classify_sequence: np.ndarray, class_type: int):
@@ -102,10 +77,9 @@ def demonstration_errors(title, classifier_errors):
 
 if __name__ == "__main__":
     N = 200
-    M_1, M_2 = get_Ms()
-    B_1, B_2 = get_Bs()
-    Bs_e = np.array([B_1, B_1])
-    Bs = np.array([B_1, B_2])
+    M_1, M_2 = const.M_1, const.M_2
+    B_1, B_2 = const.B_1, const.B_2
+    Bs, Bs_e = np.array([B_1, B_2]), np.array([B_1, B_1])
     Ms = np.array([M_1, M_2])
     Ps = np.array([0.5, 0.5])
     xs = np.linspace(-3, 3, N)
@@ -113,7 +87,7 @@ if __name__ == "__main__":
     config = {
         "generate": False,
         "save": False,
-        "endpoints": [3]
+        "endpoints": [1, 2, 3]
     }
 
     if config['generate']:
@@ -127,10 +101,10 @@ if __name__ == "__main__":
             np.savetxt("4/data/X_1.txt", X_1)
             np.savetxt("4/data/X_2.txt", X_2)
     else:
-        Y_1 = np.loadtxt("4/data/Y_1.txt")
-        Y_2 = np.loadtxt("4/data/Y_2.txt")
-        X_1 = np.loadtxt("4/data/X_1.txt")
-        X_2 = np.loadtxt("4/data/X_2.txt")
+        Y_1 = np.loadtxt("data/Y_1.txt")
+        Y_2 = np.loadtxt("data/Y_2.txt")
+        X_1 = np.loadtxt("data/X_1.txt")
+        X_2 = np.loadtxt("data/X_2.txt")
 
     exp_res = dict()
     ys, p_0, p_1 = calc_bayes(xs, Y_1, Y_2, M_1, M_2, B_1, B_1)
@@ -151,7 +125,7 @@ if __name__ == "__main__":
         "B_equal": {"ys": ys, "p0": p_0, "p1": p_1},
         "B_diff": {"ys": ys_d, "p0": p_0_d, "p1": p_1_d}
     }
-    m, betta, initial_w = 10000, 0.51, 1000
+    m, betta, initial_w = 4000, 0.99, 1
     ys, p_0, p_1 = calc_robbinsmonro(
         xs, Y_1, Y_2, m, betta, initial_w)
     ys_d, p_0_d, p_1_d = calc_robbinsmonro(
@@ -234,7 +208,7 @@ if __name__ == "__main__":
         demonstration_plot(title, xs, Y_1, Y_2,
                            {
                                "Байес": exp_res["bayes"]["B_equal"]["ys"],
-                               "Робинсон-Монро": exp_res["stdmin"]["B_equal"]["ys"]
+                               "Робинс-Монро": exp_res["stdmin"]["B_equal"]["ys"]
                            })
 
         demonstration_errors(title, {
@@ -247,7 +221,7 @@ if __name__ == "__main__":
         demonstration_plot(title, xs, X_1, X_2,
                            {
                                "Байес": exp_res["bayes"]["B_diff"]["ys"][0],
-                               "Робинсон-Монро": exp_res["robbinsmonro"]["B_diff"]["ys"]
+                               "Робинс-Монро": exp_res["robbinsmonro"]["B_diff"]["ys"]
                            },
                            isDiffBayes=True)
         demonstration_errors(title, {
@@ -262,8 +236,8 @@ if __name__ == "__main__":
         # Исследоавние зависимости скорости сходимости итерационного процесса и
         # качества классификации от выбора начальных условий и выбора последовательности
         # корректирующих коэффициентов.
-        x_1, x_2 = Y_1, Y_2
-        m, n = 1000, 10
+        x_1, x_2 = X_1, X_2
+        m, n = 1000, 7
         fig = plt.figure()
 
         title = "Выбор начальных условий"

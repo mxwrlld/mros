@@ -74,14 +74,18 @@ class RobbinsMonro:
         w = np.ones(shape=(3, 1))
         ws = np.ones(shape=(3, 1)) * self.initial_w
         alpha_count = 1
+        neighbor_sign = 0
         for i in range(self.m - 1):
             dec = ws[0, -1].T * zs[0, i] + ws[1, -1].T * zs[1, i] + ws[2, -1]
             if (dec < 0 and rs[i] > 0) or (dec > 0 and rs[i] < 0):
                 alpha = self.__generate_alpha(alpha_count)
-                alpha_count += 1
-                w[0, 0] = ws[0, -1] + alpha * zs[0, i] * (rs[i] - dec)
-                w[1, 0] = ws[1, -1] + alpha * zs[1, i] * (rs[i] - dec)
-                w[2, 0] = ws[2, -1] + alpha * zs[2, i] * (rs[i] - dec)
+                difference = rs[i] - dec
+                if np.sign(difference) != neighbor_sign:
+                    alpha_count += 1
+                    neighbor_sign = np.sign(difference)
+                w[0, 0] = ws[0, -1] + alpha * zs[0, i] * difference
+                w[1, 0] = ws[1, -1] + alpha * zs[1, i] * difference
+                w[2, 0] = ws[2, -1] + alpha * zs[2, i] * difference
                 ws = np.append(ws, w, axis=1)
         return ws
 
