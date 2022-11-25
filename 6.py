@@ -5,70 +5,63 @@ from sklearn import svm
 import utils.constants as const
 from utils.vector_generator import generate_norm_vector
 
-
-def generate_linearly_separable_selection(
-        N: int, B_1: np.ndarray, B_2: np.ndarray, M_1: np.ndarray, M_2: np.ndarray):
-    is_linearly_separable = False
-    x_1, x_2 = None, None
-    while is_linearly_separable is False:
-        x_1 = generate_norm_vector(N, B_1, M_1)
-        x_2 = generate_norm_vector(N, B_1, M_2)
-        x = np.concatenate((x_1, x_2), axis=1).T
-        yldeal = np.zeros(shape=2*N)
-        yldeal[N: 2*N] = 1
-        clf = svm.LinearSVC()
-        clf.fit(x, yldeal)
-        def classify(x1, x2): return clf.coef_[
-            0, 0] * x1 + clf.coef_[0, 1] * x2 + clf.intercept_
-        classified0 = np.array(
-            [0 if classify(x_1[0, i], x_1[1, i]) < 0 else 1 for i in range(N)])
-        classified1 = np.array(
-            [1 if classify(x_2[0, i], x_2[1, i]) > 0 else 0 for i in range(N)])
-        print(classified0)
-        print(classified1)
-        if len(classified0[classified0 == 1]) == 0 and len(classified1[classified1 == 0]) == 0:
-            is_linearly_separable = True
-    return x_1, x_2
+# ==================== Параметры ==================== #
+N = 100
+B_1, B_2 = const.B_1, const.B_2
+M_1_ls, M_2_ls = const.M_1_ls, const.M_2_ls
+M_1_lis, M_2_lis = const.M_1_lis, const.M_2_lis
+xs = np.linspace(-3, 3, N)
 
 
-def generate_linearly_inseparable_selection(
-        N: int, B_1: np.ndarray, B_2: np.ndarray, M_1: np.ndarray, M_2: np.ndarray):
-    is_linearly_inseparable = False
-    x_1, x_2 = None, None
-    while is_linearly_inseparable is False:
-        x_1 = generate_norm_vector(N, B_1, M_1)
-        x_2 = generate_norm_vector(N, B_1, M_2)
-        x = np.concatenate((x_1, x_2), axis=1).T
-        yldeal = np.zeros(shape=2*N)
-        yldeal[N: 2*N] = 1
-        clf = svm.LinearSVC()
-        clf.fit(x, yldeal)
-
-        def classify(x1, x2): return clf.coef_[
-            0, 0] * x1 + clf.coef_[0, 1] * x2 + clf.intercept_
-        classified0 = np.array(
-            [0 if classify(x_1[0, i], x_1[1, i]) < 0 else 1 for i in range(N)])
-        classified1 = np.array(
-            [1 if classify(x_2[0, i], x_2[1, i]) > 0 else 0 for i in range(N)])
-        print(classified0)
-        print(classified1)
-        if len(classified0[classified0 == 1]) != 0 or len(classified1[classified1 == 0]) != 0:
-            is_linearly_inseparable = True
-    return x_1, x_2
+def get_vectors(generate: bool, save: bool):
+    if generate:
+        Y_1 = generate_norm_vector(N, B_1, M_1_ls)
+        Y_2 = generate_norm_vector(N, B_1, M_2_ls)
+        X_1 = generate_norm_vector(N, B_1, M_1_lis)
+        X_2 = generate_norm_vector(N, B_2, M_2_lis)
+        if save:
+            np.savetxt("4/data/Y_1.txt", Y_1)
+            np.savetxt("4/data/Y_2.txt", Y_2)
+            np.savetxt("4/data/X_1.txt", X_1)
+            np.savetxt("4/data/X_2.txt", X_2)
+    else:
+        Y_1 = np.loadtxt("data/Y_1.txt")
+        Y_2 = np.loadtxt("data/Y_2.txt")
+        X_1 = np.loadtxt("data/X_1.txt")
+        X_2 = np.loadtxt("data/X_2.txt")
+    return Y_1, Y_2, X_1, X_2
 
 
 if __name__ == "__main__":
-    N = 50
-    M_1, M_2 = const.M_1, const.M_2
-    B_1, B_2 = const.B_1, const.B_2
-    xs = np.linspace(-3, 3, N)
-    Y_1 = generate_norm_vector(N, B_1, M_1)
-    Y_2 = generate_norm_vector(N, B_1, M_2)
-    X_1 = generate_norm_vector(N, B_1, M_1)
-    X_2 = generate_norm_vector(N, B_2, M_2)
+    config = {
+        "generate": True,
+        "save": False
+    }
 
-    x_1, x_2 = generate_linearly_inseparable_selection(N, B_1, B_1, M_1, M_2)
-    z0, z1 = x_1, x_2
+    # ==================== Синтез выборок двух классов ==================== #
+    # 1. Синтезировать линейно разделимые выборки для двух классов двумерных случайных векторов в количестве N=100 в каждом классе
+    S_1, S_2, IS_1, IS_2 = get_vectors(
+        config["generate"], config["save"])
+
+
+    # 2. Построить линейный классификатор по методу опорных векторов на выборке с линейно разделимыми классами. 
+    # Использовать: 
+    # - задачу (7) и метод решения квадратичных задач
+    # - метод sklearn.svm.SVC библиотеки scikit-learn 
+    # сопоставить решения из п.(б) с решением методом sklearn.svm.LinearSVC
+
+    # 3. Построить линейный классификатор по SVM на выборке с линейно неразделимыми классами. Использовать для этого:
+    # - задачу (12) и метод решения квадратичных задач. 
+    #       Указать решения для C=1/10, 1, 10 и подобранно самостоятельно «лучшим коэффициентом».
+    # - метод sklearn.svm.SVC библиотеки scikit-learn
+
+    # 4. Построить классификатор по SVM, разделяющий линейно неразделимые классы. 
+    # Использовать: 
+    # - задачу (14) и метод решения квадратичных задач,
+    #       Исследовать решение для различных значений параметра C=1/10, 1, 10 и различных ядер из таблицы 1
+    # - метод sklearn.svm.SVC.
+
+    z0, z1 = S_1, S_2
     x = np.concatenate((z0, z1), axis=1).T
     yldeal = np.zeros(shape=2*N)
     yldeal[N: 2*N] = 1
