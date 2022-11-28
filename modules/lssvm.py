@@ -2,29 +2,27 @@ import numpy as np
 import qpsolvers
 from qpsolvers import solve_qp
 
-
-class LSSVM:
-    def __init__(self, training_sample: np.ndarray):
-        # m - объём обучающей выборки, training sample == zs
+class SVM:
+    def __init__(self, training_sample):
+        # m - объём обучающей выборки, training sample == zss
         self.m = training_sample.shape[1]
-        print("available_solvers: ", qpsolvers.available_solvers)
-        lyambdas = solve_qp(
-            self.__calc_P(training_sample),
-            self.__get_q(),
-            self.__get_G(),
-            self.__get_h(),
-            self.__calc_A(training_sample),
-            self.__get_b(),
+        self.lyambdas = solve_qp(
+            self.calc_P(training_sample),
+            self.get_q(),
+            self.get_G(),
+            self.get_h(),
+            self.calc_A(training_sample),
+            self.get_b(), 
             solver='cvxopt'
         )
         # Получение индексов векторов, претендующих на опорные
-        support_vectors_indexes = np.where(lyambdas > 0.000001, True, False)
+        support_vectors_indexes = np.where(self.lyambdas > 0.0000001, True, False)
         self.support_vectors = training_sample[:, support_vectors_indexes]
-        self.w = self.__calc_w(
-            self.support_vectors, lyambdas[support_vectors_indexes])
-        self.w_n = self.__calc_w_n(self.support_vectors)
-
-    def __calc_P(self, zs: np.ndarray):
+        self.w = self.calc_w(
+            self.support_vectors, self.lyambdas[support_vectors_indexes])
+        self.w_n = self.calc_w_n(self.support_vectors)
+    
+    def calc_P(self, zs: np.ndarray):
         P = np.ndarray(shape=(self.m, self.m))
 
         for i in range(self.m):
@@ -36,29 +34,58 @@ class LSSVM:
                 P[i, j] = sign * (zs_j.T @ zs_i)
         return P
 
-    def __get_q(self):
-        return np.ones(shape=(self.m, 1)) * (- 1)
-
-    def __get_G(self):
-        return np.eye(self.m) * -1
-
-    def __get_h(self):
-        return np.zeros((self.m))
-
-    def __calc_A(self, zs: np.ndarray):
+    def calc_A(self, zs: np.ndarray):
         A = np.array([zs[3, i] for i in range(self.m)])
         return A
 
-    def __get_b(self):
-        return np.zeros(shape=1)
-
     # Расчёт матрицы весовых коэффициентов через двойственные переменные
-    def __calc_w(self, support_vectors, support_vectors_lyambdas):
+    def calc_w(self, support_vectors, support_vectors_lyambdas):
         w = np.sum(support_vectors[0:2] *
                    support_vectors[3] * support_vectors_lyambdas, axis=1)
         return np.reshape(w, newshape=(2, 1))
-
-    def __calc_w_n(self, support_vectors):
+    
+    # Расчёт порогового значения
+    def calc_w_n(self, support_vectors):
         if support_vectors.shape[1] != 0:
             return (support_vectors[3, -1] - (self.w.T @ support_vectors[0:2, -1]))[0]
         return None
+
+
+class LSSVM(SVM):
+    def __init__(self, training_sample: np.ndarray):
+        super().__init__(
+            training_sample
+            )
+
+    def get_q(self):
+        return np.ones(shape=(self.m, 1)) * (- 1)
+
+    def get_G(self):
+        return np.eye(self.m) * -1
+
+    def get_h(self):
+        return np.zeros((self.m))
+
+    def get_b(self):
+        return np.zeros(shape=1)
+
+
+class LISSVM(SVM):
+    def __init__(self, training_sample: np.ndarray, C: float=1):
+        # m - объём обучающей выборки, training sample == zs
+        self.C = C
+        super().__init__(
+            training_sample
+            )
+
+    def get_q(self):
+        return np.ones(shape=(self.m, 1)) * (- 1)
+
+    def get_G(self):
+        return np.concatenate((np.eye(self.m) * -1, np.eye(self.m)), axis=0)
+
+    def get_h(self):
+        return np.concatenate((np.zeros((self.m,)), np.full((self.m,), self.C)), axis=0)
+
+    def get_b(self):
+        return np.zeros(shape=1)
