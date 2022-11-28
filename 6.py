@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from sklearn import svm
 import utils.constants as const
 from utils.vector_generator import generate_norm_vector
-from modules.lssvm import LSSVM, LISSVM
+from modules.svm.lssvm import LSSVM, LISSVM
 
 
 # ==================== Параметры ==================== #
@@ -21,15 +21,15 @@ def get_vectors(generate: bool, save: bool):
         X_1 = generate_norm_vector(N, B_1, M_1_lis)
         X_2 = generate_norm_vector(N, B_2, M_2_lis)
         if save:
-            np.savetxt("4/data/Y_1.txt", Y_1)
-            np.savetxt("4/data/Y_2.txt", Y_2)
-            np.savetxt("4/data/X_1.txt", X_1)
-            np.savetxt("4/data/X_2.txt", X_2)
+            np.savetxt("4/data/ls/Y_1.txt", Y_1)
+            np.savetxt("4/data/ls/Y_2.txt", Y_2)
+            np.savetxt("4/data/lis/X_1.txt", X_1)
+            np.savetxt("4/data/lis/X_2.txt", X_2)
     else:
-        Y_1 = np.loadtxt("data/Y_1.txt")
-        Y_2 = np.loadtxt("data/Y_2.txt")
-        X_1 = np.loadtxt("data/X_1.txt")
-        X_2 = np.loadtxt("data/X_2.txt")
+        Y_1 = np.loadtxt("4/data/ls/Y_1.txt")
+        Y_2 = np.loadtxt("4/data/ls/Y_2.txt")
+        X_1 = np.loadtxt("4/data/lis/X_1.txt")
+        X_2 = np.loadtxt("4/data/lis/X_2.txt")
     return Y_1, Y_2, X_1, X_2
 
 
@@ -110,13 +110,18 @@ def painter(title: str, x_1, x_2, name_ys: dict, isDiffBayes: bool = False):
     plt.legend()
     plt.show()
 
+def get_separating_hyperplane_top(ys: np.ndarray, w: np.ndarray):
+    return ys + 1 / w[0, 0]
+
+def get_separating_hyperplane_bottom(ys: np.ndarray, w: np.ndarray):
+    return ys - 1 / w[0, 0]
 
 if __name__ == "__main__":
     res = dict()
     config = {
         "generate": True,
         "save": False,
-        "checkpoints": [2]
+        "checkpoints": [1]
     }
     # ==================== Синтез выборок двух классов ==================== #
     # 1. Синтезировать линейно разделимые выборки для двух классов двумерных случайных векторов в количестве N=100 в каждом классе
@@ -141,15 +146,12 @@ if __name__ == "__main__":
                     "class_0": lssvm.support_vectors[0:2, lssvm.support_vectors[3, :] == -1],
                     "class_1": lssvm.support_vectors[0:2, lssvm.support_vectors[3, :] == 1]
                 },
-                "xs": [xs, xs + 1 / lssvm.w[0, 0], xs - 1 / lssvm.w[0, 0]],
-                "ys": [ys, ys, ys],
+                "xs": [xs, xs, xs],
+                "ys": [ys, get_separating_hyperplane_top(ys, lssvm.w), get_separating_hyperplane_bottom(ys, lssvm.w)],
                 "p0": calc_alpha(classify_vectors(lssvm.w, lssvm.w_n, S_1, 0, 1), 1),
                 "p1": calc_alpha(classify_vectors(lssvm.w, lssvm.w_n, S_2, 1, 0), 0)
             }
         }
-        # print(lssvm.support_vectors)
-        # print(lssvm.support_vectors[0:2, lssvm.support_vectors[3, :] == 1])
-        # print(lssvm.support_vectors[0:2, lssvm.support_vectors[3, :] == -1])
 
         sklearn_svm = svm.SVC(kernel='linear')
         sklearn_svm.fit(training_sample_ls[0:3, :].T, training_sample_ls[3, :])
@@ -163,8 +165,8 @@ if __name__ == "__main__":
                     "class_0": support_vectors[0:2, support_vectors[3, :] == -1],
                     "class_1": support_vectors[0:2, support_vectors[3, :] == 1]
                 },
-                "xs": [xs, xs + 1 / w[0, 0], xs - 1 / w[0, 0]],
-                "ys": [ys, ys, ys],
+                "xs": [xs, xs, xs],
+                "ys": [ys, get_separating_hyperplane_top(ys, w), get_separating_hyperplane_bottom(ys, w)],
                 "p0": calc_alpha(classify_vectors(w, w_n, S_1, 0, 1), 1),
                 "p1": calc_alpha(classify_vectors(w, w_n, S_2, 1, 0), 0)
             }
@@ -179,8 +181,8 @@ if __name__ == "__main__":
         res["LS"].update({
             "sklearn_linearSVC": {
                 "support_vectors": None,
-                "xs": [xs, xs + 1 / w[0, 0], xs - 1 / w[0, 0]],
-                "ys": [ys, ys, ys],
+                "xs": [xs, xs, xs],
+                "ys": [ys, get_separating_hyperplane_top(ys, w), get_separating_hyperplane_bottom(ys, w)],
                 "p0": calc_alpha(classify_vectors(w, w_n, S_1, 0, 1), 1),
                 "p1": calc_alpha(classify_vectors(w, w_n, S_2, 1, 0), 0)
             }
@@ -216,8 +218,8 @@ if __name__ == "__main__":
                         "class_0": lissvm.support_vectors[0:2, lissvm.support_vectors[3, :] == -1],
                         "class_1": lissvm.support_vectors[0:2, lissvm.support_vectors[3, :] == 1]
                     },
-                    "xs": [xs, xs + 1 / lissvm.w[0, 0], xs - 1 / lissvm.w[0, 0]],
-                    "ys": [ys, ys, ys],
+                "xs": [xs, xs, xs],
+                "ys": [ys, get_separating_hyperplane_top(ys, lissvm.w), get_separating_hyperplane_bottom(ys, lissvm.w)],
                     "p0": calc_alpha(classify_vectors(lissvm.w, lissvm.w_n, S_1, 0, 1), 1),
                     "p1": calc_alpha(classify_vectors(lissvm.w, lissvm.w_n, S_2, 1, 0), 0)
                 }
@@ -235,8 +237,8 @@ if __name__ == "__main__":
                         "class_0": support_vectors[0:2, support_vectors[3, :] == -1],
                         "class_1": support_vectors[0:2, support_vectors[3, :] == 1]
                     },
-                    "xs": [xs, xs + 1 / w[0, 0], xs - 1 / w[0, 0]],
-                    "ys": [ys, ys, ys],
+                    "xs": [xs, xs, xs],
+                    "ys": [ys, get_separating_hyperplane_top(ys, w), get_separating_hyperplane_bottom(ys, w)],
                     "p0": calc_alpha(classify_vectors(w, w_n, S_1, 0, 1), 1),
                     "p1": calc_alpha(classify_vectors(w, w_n, S_2, 1, 0), 0)
                 }

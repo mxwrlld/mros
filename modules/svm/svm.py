@@ -1,5 +1,4 @@
 import numpy as np
-import qpsolvers
 from qpsolvers import solve_qp
 
 class SVM:
@@ -49,43 +48,3 @@ class SVM:
         if support_vectors.shape[1] != 0:
             return (support_vectors[3, -1] - (self.w.T @ support_vectors[0:2, -1]))[0]
         return None
-
-
-class LSSVM(SVM):
-    def __init__(self, training_sample: np.ndarray):
-        super().__init__(
-            training_sample
-            )
-
-    def get_q(self):
-        return np.ones(shape=(self.m, 1)) * (- 1)
-
-    def get_G(self):
-        return np.eye(self.m) * -1
-
-    def get_h(self):
-        return np.zeros((self.m))
-
-    def get_b(self):
-        return np.zeros(shape=1)
-
-
-class LISSVM(SVM):
-    def __init__(self, training_sample: np.ndarray, C: float=1):
-        # m - объём обучающей выборки, training sample == zs
-        self.C = C
-        super().__init__(
-            training_sample
-            )
-
-    def get_q(self):
-        return np.ones(shape=(self.m, 1)) * (- 1)
-
-    def get_G(self):
-        return np.concatenate((np.eye(self.m) * -1, np.eye(self.m)), axis=0)
-
-    def get_h(self):
-        return np.concatenate((np.zeros((self.m,)), np.full((self.m,), self.C)), axis=0)
-
-    def get_b(self):
-        return np.zeros(shape=1)
