@@ -1,12 +1,15 @@
 import numpy as np
-from svm import SVM
+from modules.svm.svm import SVM
+
 
 class LISSVM(SVM):
-    def __init__(self, training_sample: np.ndarray, C: float=1):
+    def __init__(self,
+                 training_sample: np.ndarray, C: float = 1):
         self.C = C
         super().__init__(
-            training_sample
-            )
+            training_sample,
+            threshold=0.01
+        )
 
     def get_q(self):
         return np.ones(shape=(self.m, 1)) * (- 1)
