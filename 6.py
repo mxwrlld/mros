@@ -41,21 +41,35 @@ def get_vectors(generate: bool, lssave: bool, lissave: bool):
 def generate_training_sample(x_1: np.ndarray, x_2: np.ndarray):
     length = x_1.shape[1]
     m = x_1.shape[1] + x_2.shape[1]
-    zs = np.ndarray(shape=(4, m))
+    zs = np.ndarray(shape=(3, m))
     for i in range(m):
         if i % 2 == 0:
             zs[0, i] = x_1[0, int((i / 2) % length)]
             zs[1, i] = x_1[1, int((i / 2) % length)]
-            zs[3, i] = - 1
+            zs[2, i] = - 1
         else:
             zs[0, i] = x_2[0, int((i - 1 / 2) % length)]
             zs[1, i] = x_2[1, int((i - 1 / 2) % length)]
-            zs[3, i] = 1
-        zs[2, i] = 1
+            zs[2, i] = 1
     # Дополнительное переупорядочивание
     #np.random.default_rng().shuffle(zs, axis=1)
     return zs
 
+def generate_training_sample_2(x_1: np.ndarray, x_2: np.ndarray):
+    m = x_1.shape[1] + x_2.shape[1]
+    zs = np.ndarray(shape=(3, m))
+    j = 0
+    for i in range(m // 2):
+        zs[0, j] = x_1[0, i]
+        zs[1, j] = x_1[1, i]
+        zs[2, j] = - 1
+        j += 1
+
+        zs[0, j] = x_2[0, i]
+        zs[1, j] = x_2[1, i]
+        zs[2, j] = 1
+        j += 1
+    return zs
 
 def calc_alpha(classify_sequence: np.ndarray, class_type: int):
     return len(classify_sequence[classify_sequence == class_type]) / len(classify_sequence)
@@ -112,6 +126,7 @@ def painter(title: str, x_1, x_2, name_ys: dict, isDiffBayes: bool = False):
     mng = plt.get_current_fig_manager()
     mng.window.state('zoomed')
     plt.xlim([-4, 4])
+    plt.xlim([-4, 4])
     plt.legend()
     plt.show()
 
@@ -127,7 +142,7 @@ def get_separating_hyperplane_bottom(xs: np.ndarray, w: np.ndarray):
 if __name__ == "__main__":
     res = dict()
     config = {
-        "generate": False,
+        "generate": True,
         "lssave": False,
         "lissave": False,
         "checkpoints": [1]
@@ -145,15 +160,21 @@ if __name__ == "__main__":
     # сопоставить решения из п.(б) с решением методом sklearn.svm.LinearSVC
     if 1 in config["checkpoints"]:
         training_sample_ls = generate_training_sample(S_1, S_2)
+        training_sample_ls_2 = generate_training_sample_2(S_1, S_2)
+        # print("Fisrt", np.unique(training_sample_ls).shape)
+        # print("Second", np.unique(training_sample_ls_2).shape)
 
+        # dp = np.load("D:\study\mros\data\Ps\dp")
+        np.save("data\Ps\dm", training_sample_ls_2)
+        training_sample_ls = training_sample_ls_2
         lssvm = LSSVM(training_sample_ls)
         ys = calc_decisive_boundaries(lssvm.w, lssvm.w_n, xs)
         w, w_n = lssvm.w, lssvm.w_n
         res["LS"] = {
             "lssvm": {
                 "support_vectors": {
-                    "class_0": lssvm.support_vectors[0:2, lssvm.support_vectors[3, :] == -1],
-                    "class_1": lssvm.support_vectors[0:2, lssvm.support_vectors[3, :] == 1]
+                    "class_0": lssvm.support_vectors[0:2, lssvm.support_vectors[2, :] == -1],
+                    "class_1": lssvm.support_vectors[0:2, lssvm.support_vectors[2, :] == 1]
                 },
                 "xs": [xs, get_separating_hyperplane_top(xs, w), get_separating_hyperplane_bottom(xs, w)],
                 "ys": [ys, ys, ys],
@@ -163,7 +184,7 @@ if __name__ == "__main__":
         }
 
         sklearn_svm = svm.SVC(kernel='linear')
-        sklearn_svm.fit(training_sample_ls[0:3, :].T, training_sample_ls[3, :])
+        sklearn_svm.fit(training_sample_ls[0:2, :].T, training_sample_ls[2, :])
         w = sklearn_svm.coef_.T
         w_n = sklearn_svm.intercept_[0]
         support_vectors = training_sample_ls[:, sklearn_svm.support_]
@@ -171,8 +192,8 @@ if __name__ == "__main__":
         res["LS"].update({
             "sklearn_svm": {
                 "support_vectors": {
-                    "class_0": support_vectors[0:2, support_vectors[3, :] == -1],
-                    "class_1": support_vectors[0:2, support_vectors[3, :] == 1]
+                    "class_0": support_vectors[0:2, support_vectors[2, :] == -1],
+                    "class_1": support_vectors[0:2, support_vectors[2, :] == 1]
                 },
                 "xs": [xs, get_separating_hyperplane_top(xs, w), get_separating_hyperplane_bottom(xs, w)],
                 "ys": [ys, ys, ys],
@@ -183,7 +204,7 @@ if __name__ == "__main__":
 
         sklearn_linearSVC = svm.LinearSVC()
         sklearn_linearSVC.fit(
-            training_sample_ls[0:3, :].T, training_sample_ls[3, :])
+            training_sample_ls[0:2, :].T, training_sample_ls[2, :])
         w = sklearn_linearSVC.coef_.T
         w_n = sklearn_linearSVC.intercept_[0]
         ys = calc_decisive_boundaries(w, w_n, xs)
@@ -214,20 +235,21 @@ if __name__ == "__main__":
     #       Указать решения для C=1/10, 1, 10 и подобранно самостоятельно «лучшим коэффициентом».
     # - метод sklearn.svm.SVC библиотеки scikit-learn
     if 2 in config["checkpoints"]:
-        training_sample_ls = generate_training_sample(IS_1, IS_2)
+        training_sample_ls = generate_training_sample_2(IS_1, IS_2)
         Cs = [10]
 
         for C in Cs:
             lissvm = LISSVM(training_sample_ls, C)
-            ys = calc_decisive_boundaries(lissvm.w, lissvm.w_n, xs)
+            w, w_n = lissvm.w, lissvm.w_n
+            ys = calc_decisive_boundaries(w, w_n, xs)
             res[f"LIS_{C}"] = {
                 "lissvm": {
                     "support_vectors": {
-                        "class_0": lissvm.support_vectors[0:2, lissvm.support_vectors[3, :] == -1],
-                        "class_1": lissvm.support_vectors[0:2, lissvm.support_vectors[3, :] == 1]
+                        "class_0": lissvm.support_vectors[0:2, lissvm.support_vectors[2, :] == -1],
+                        "class_1": lissvm.support_vectors[0:2, lissvm.support_vectors[2, :] == 1]
                     },
-                    "xs": [xs, xs, xs],
-                    "ys": [ys, get_separating_hyperplane_top(ys, lissvm.w, lissvm.w_n), get_separating_hyperplane_bottom(ys, lissvm.w, lissvm.w_n)],
+                    "xs": [xs, get_separating_hyperplane_top(xs, w), get_separating_hyperplane_bottom(xs, w)],
+                    "ys": [ys, ys, ys],
                     "p0": calc_alpha(classify_vectors(lissvm.w, lissvm.w_n, S_1, 0, 1), 1),
                     "p1": calc_alpha(classify_vectors(lissvm.w, lissvm.w_n, S_2, 1, 0), 0)
                 }
@@ -262,7 +284,7 @@ if __name__ == "__main__":
 
             sklearn_svm = svm.SVC(kernel='linear', C=C)
             sklearn_svm.fit(
-                training_sample_ls[0:3, :].T, training_sample_ls[3, :])
+                training_sample_ls[0:2, :].T, training_sample_ls[2, :])
             w = sklearn_svm.coef_.T
             w_n = sklearn_svm.intercept_[0]
             support_vectors = training_sample_ls[:, sklearn_svm.support_]
@@ -270,8 +292,8 @@ if __name__ == "__main__":
             res[f"LIS_{C}"].update({
                 "sklearn_svm": {
                     "support_vectors": {
-                        "class_0": support_vectors[0:2, support_vectors[3, :] == -1],
-                        "class_1": support_vectors[0:2, support_vectors[3, :] == 1]
+                        "class_0": support_vectors[0:2, support_vectors[2, :] == -1],
+                        "class_1": support_vectors[0:2, support_vectors[2, :] == 1]
                     },
                     "xs": [xs, get_separating_hyperplane_top(xs, w), get_separating_hyperplane_bottom(xs, w)],
                     "ys": [ys, ys, ys],
