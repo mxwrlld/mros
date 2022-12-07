@@ -21,8 +21,6 @@ class SVM:
             self.get_b(),
             solver='cvxopt'
         )
-        np.savetxt(
-            "data\Ps\L_M.txt", self.lyambdas)
 
         # Получение индексов векторов, претендующих на опорные
         support_vectors_indexes = np.where(

@@ -101,7 +101,7 @@ def classify_vectors(w: np.ndarray, w_n: float, xs: np.ndarray, class_type: int,
     return np.where(ds > 0, class_type, another_class_type)
 
 
-def painter(title: str, x_1, x_2, name_ys: dict, isDiffBayes: bool = False):
+def painter(title: str, x_1, x_2, name_ys: dict, isDiffBayes: bool = False, printErrors: bool = False):
     plt.title(title)
     plt.plot(x_1[0], x_1[1], c="blue", marker='.', linestyle='none')
     plt.plot(x_2[0], x_2[1], c="orange", marker='.', linestyle='none')
@@ -123,6 +123,10 @@ def painter(title: str, x_1, x_2, name_ys: dict, isDiffBayes: bool = False):
                      name_ys[name]['support_vectors']["class_1"][1, :],
                      c="orange", marker='X', linestyle='none')
         i += 1
+        if printErrors:
+            p_0, p_1 = name_ys[name]["p0"], name_ys[name]["p1"]
+            print(name, f"\n\tВероятности ошибочной классификации: \tp_0: {p_0}\tp_1: {p_1}")
+
     mng = plt.get_current_fig_manager()
     mng.window.state('zoomed')
     plt.xlim([-4, 4])
@@ -164,8 +168,6 @@ if __name__ == "__main__":
         # print("Fisrt", np.unique(training_sample_ls).shape)
         # print("Second", np.unique(training_sample_ls_2).shape)
 
-        # dp = np.load("D:\study\mros\data\Ps\dp")
-        np.save("data\Ps\dm", training_sample_ls_2)
         training_sample_ls = training_sample_ls_2
         lssvm = LSSVM(training_sample_ls)
         ys = calc_decisive_boundaries(lssvm.w, lssvm.w_n, xs)
@@ -219,7 +221,7 @@ if __name__ == "__main__":
         })
 
         painter(
-            "Линейно разделимые классы", S_1, S_2, {"lssvm": res["LS"]["lssvm"]}
+            "Линейно разделимые классы", S_1, S_2, {"lssvm": res["LS"]["lssvm"]}, printErrors=True
         )
         # painter(
         #     "Линейно разделимые классы", S_1, S_2, {}
