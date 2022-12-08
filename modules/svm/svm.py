@@ -15,11 +15,9 @@ class SVM:
             self.get_b(),
             solver='cvxopt'
         )
-        np.save("data\\test\lm", self.lyambdas)
         # Получение индексов векторов, претендующих на опорные
         self.support_vectors_indexes = np.where(
             self.lyambdas > threshold, True, False)
-        np.save("data\\test\svim", self.support_vectors_indexes)
         self.support_vectors = training_sample[:, self.support_vectors_indexes]
         self.w = self.calc_w(
             self.support_vectors, self.lyambdas[self.support_vectors_indexes])

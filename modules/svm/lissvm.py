@@ -8,7 +8,7 @@ class LISSVM(SVM):
         self.C = C
         super().__init__(
             training_sample,
-            threshold=1e-4
+            threshold=0.0001
         )
 
     def get_q(self):

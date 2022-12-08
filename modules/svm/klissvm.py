@@ -23,7 +23,6 @@ class KLISSVM(SVM):
                 zs_j = np.array([[zs[0, j]], [zs[1, j]]])
                 k = self.get_kernel(zs_j, zs_i)
                 P[i, j] = sign * k
-        np.save("data/test/pm", P)
         return P
 
     def get_discriminant_kernel(self, x):
@@ -39,7 +38,6 @@ class KLISSVM(SVM):
         for i in range(self.support_vectors.shape[1]):
             w_n[i] = self.get_discriminant_kernel(self.support_vectors[0:2, i])
         w_n = np.mean(self.support_vectors[2] - w_n)
-        np.save("data\\test\wnm.npy", w_n)
         return w_n
 
     def get_kernel(self, x, y):

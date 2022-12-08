@@ -94,7 +94,7 @@ def calc_decisive_function(w: np.ndarray, w_n: float, x: np.ndarray):
     return w[0, 0] * x[0] + w[1, 0] * x[1] + w_n
 
 
-def calc_decisive_function(x: np.ndarray, kernel_func, w_n):
+def calc_decisive_function_solveqp(x: np.ndarray, kernel_func, w_n):
     return kernel_func(x) + w_n
 
 
@@ -104,8 +104,8 @@ def calc_decisive_functions(w: np.ndarray, w_n: float, xs: np.ndarray):
     return v_calc_dec_func(w, w_n, np.reshape(xs.T, newshape=(xs.shape[1], xs.shape[0])))
 
 
-def calc_decisive_functions(xs: np.ndarray, kernel_func, w_n):
-    return np.array([calc_decisive_function(xs[:, i], kernel_func, w_n) for i in range(xs.shape[1])])
+def calc_decisive_functions_solveqp(xs: np.ndarray, kernel_func, w_n):
+    return np.array([calc_decisive_function_solveqp(xs[:, i], kernel_func, w_n) for i in range(xs.shape[1])])
 
 
 def classify_vectors(w: np.ndarray, w_n: float, xs: np.ndarray, class_type: int, another_class_type: int):
@@ -116,7 +116,7 @@ def classify_vectors(w: np.ndarray, w_n: float, xs: np.ndarray, class_type: int,
 
 
 def classify_vectors_solveqp(xs: np.ndarray, kernel_func, w_n: float, class_type: int, another_class_type: int):
-    ds = calc_decisive_functions(xs, kernel_func, w_n)
+    ds = calc_decisive_functions_solveqp(xs, kernel_func, w_n)
     if class_type == 0:
         return np.where(ds < 0, class_type, another_class_type)
     return np.where(ds > 0, class_type, another_class_type)
@@ -132,7 +132,7 @@ def classify_vectors_svc(xs: np.ndarray, class_type: int, another_class_type: in
 def painter(
         title: str, x_1, x_2, name_ys: dict,
         isDiffBayes: bool = False, printErrors: bool = False,
-        delay_show: bool = False, separate_plot=False):
+        delay_show: bool = False, separate_plot=True):
     if separate_plot:
         plt.figure()
     plt.title(title)
@@ -148,18 +148,14 @@ def painter(
             h1, _ = cs.legend_elements()
             proxy.append(h1[0])
             legends.append(name)
-            # proxy.append(plt.Rectangle(
-            #     (0, 0), 1, 1, fc=cs.collections[0].get_facecolor()[0]))
-            # legends.append(name)
-
         else:
             for j in range(len(name_ys[name]["xs"])):
                 if j == 0:
                     plt.plot(name_ys[name]["xs"][j], name_ys[name]["ys"][j],
                              c=colors[i], label=name)
-                continue
-            plt.plot(name_ys[name]["xs"][j], name_ys[name]["ys"][j],
-                     c=colors[i])
+                    continue
+                plt.plot(name_ys[name]["xs"][j], name_ys[name]["ys"][j],
+                         c=colors[i])
         if ('support_vectors' in name_ys[name]) and (name_ys[name]['support_vectors'] is not None):
             marker = 'X'
             plt.plot(name_ys[name]['support_vectors']["class_0"][0, :],
@@ -205,7 +201,7 @@ if __name__ == "__main__":
         "generate": False,
         "lssave": False,
         "lissave": False,
-        "checkpoints": [3]
+        "checkpoints": [1, 2, 3]
     }
     # ==================== Синтез ЛР и ЛНР выборок двух классов ==================== #
     # 1. Синтезировать линейно разделимые выборки для двух классов двумерных случайных векторов в количестве N=100 в каждом классе
@@ -293,7 +289,7 @@ if __name__ == "__main__":
     # - метод sklearn.svm.SVC библиотеки scikit-learn
     if 2 in config["checkpoints"]:
         training_sample_lis = generate_training_sample_2(IS_1, IS_2)
-        Cs = [40]
+        Cs = [0.1, 1, 10, 18]
 
         for C in Cs:
             lissvm = LISSVM(training_sample_lis, C)
@@ -332,13 +328,13 @@ if __name__ == "__main__":
                 }
             })
 
-            painter(
-                f"Линейно неразделимые классы. С = {C}", IS_1, IS_2, {"lissvm": res[f"LIS_{C}"]["lissvm"]}, printErrors=True, delay_show=True
-            )
             # painter(
-            #     f"Линейно неразделимые классы. С = {C}", IS_1, IS_2, res[f"LIS_{C}"], printErrors=True, delay_show=True
+            #     f"Линейно неразделимые классы. С = {C}", IS_1, IS_2, {"lissvm": res[f"LIS_{C}"]["lissvm"]}, printErrors=True, delay_show=True
             # )
-        plt.show()
+            painter(
+                f"Линейно неразделимые классы. С = {C}", IS_1, IS_2, res[f"LIS_{C}"], printErrors=True, delay_show=True
+            )
+            plt.show()
 
     # ==================== SVM c ЯДРОМ для ЛНР классов ==================== #
     # 4. Построить классификатор по SVM, разделяющий линейно неразделимые классы.
@@ -359,11 +355,11 @@ if __name__ == "__main__":
         xx, yy = np.meshgrid(x, y)
         xy = np.vstack((xx.ravel(), yy.ravel())).T
 
-        Cs = [15]
+        Cs = [10]
         # ['poly', 'sigmoid', 'rbf', 'rbf_gauss']
-        kernels = ['poly']
+        kernels = ['poly', 'sigmoid', 'rbf', 'rbf_gauss']
         params = {
-            "d": 4, "c_p": 1,
+            "d": 3, "c_p": 1,
             "g_s": 0.08, "c_s": -0.6,
             "g_r": 1, "g_r_gauss": 1 / (2 * np.var(np.sqrt(training_sample_lis ** 2 + training_sample_lis ** 2)))
         }
@@ -430,7 +426,7 @@ if __name__ == "__main__":
         if lonely_mode:
             plt.show()
 
-        if 1 == 0:
+        if 1 == 1:
             fig = plt.figure()
             plot_num = 1
             for kernel in kernels:
@@ -439,7 +435,9 @@ if __name__ == "__main__":
                     painter(
                         f"С = {C}. Ядро - {kernel_dict[kernel]}",
                         IS_1, IS_2, res[f"KLIS_{kernel}_{C}"],
-                        delay_show=True
+                        delay_show=True,
+                        printErrors=True,
+                        separate_plot=False
                     )
                 plot_num += 1
             plt.show()
