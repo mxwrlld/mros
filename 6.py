@@ -14,6 +14,12 @@ B_1, B_2 = const.B_1, const.B_2
 M_1_ls, M_2_ls = const.M_1_ls, const.M_2_ls
 M_1_lis, M_2_lis = const.M_1_lis, const.M_2_lis
 xs = np.linspace(-3, 3, N)
+kernel_dict = {
+    "poly": "Полиномиальное",
+    "sigmoid": "Сигмоидальная функция",
+    "rbf": "Радиальная функция",
+    "rbf_gauss": "Радиальная функция Гаусса",
+}
 
 
 def get_vectors(generate: bool, lssave: bool, lissave: bool):
@@ -23,10 +29,8 @@ def get_vectors(generate: bool, lssave: bool, lissave: bool):
         X_1 = generate_norm_vector(N, B_1, M_1_lis)
         X_2 = generate_norm_vector(N, B_2, M_2_lis)
         if lssave:
-            # np.savetxt("data/ls/Y_1.txt", Y_1)
-            # np.savetxt("data/ls/Y_2.txt", Y_2)
-            np.savetxt("data/ls/T_1.txt", Y_1)
-            np.savetxt("data/ls/T_2.txt", Y_2)
+            np.savetxt("data/ls/Y_1.txt", Y_1)
+            np.savetxt("data/ls/Y_2.txt", Y_2)
         if lissave:
             np.savetxt("data/lis/X_1.txt", X_1)
             np.savetxt("data/lis/X_2.txt", X_2)
@@ -52,8 +56,9 @@ def generate_training_sample(x_1: np.ndarray, x_2: np.ndarray):
             zs[1, i] = x_2[1, int((i - 1 / 2) % length)]
             zs[2, i] = 1
     # Дополнительное переупорядочивание
-    #np.random.default_rng().shuffle(zs, axis=1)
+    # np.random.default_rng().shuffle(zs, axis=1)
     return zs
+
 
 def generate_training_sample_2(x_1: np.ndarray, x_2: np.ndarray):
     m = x_1.shape[1] + x_2.shape[1]
@@ -71,18 +76,9 @@ def generate_training_sample_2(x_1: np.ndarray, x_2: np.ndarray):
         j += 1
     return zs
 
+
 def calc_alpha(classify_sequence: np.ndarray, class_type: int):
     return len(classify_sequence[classify_sequence == class_type]) / len(classify_sequence)
-
-
-def calc_decisive_function(w: np.ndarray, w_n: float, x: np.ndarray):
-    return w[0, 0] * x[0] + w[1, 0] * x[1] + w_n
-
-
-def calc_decisive_functions(w: np.ndarray, w_n: float, xs: np.ndarray):
-    v_calc_dec_func = np.vectorize(calc_decisive_function,
-                                   excluded=[0], signature='(),(n)->()')
-    return v_calc_dec_func(w, w_n, np.reshape(xs.T, newshape=(xs.shape[1], xs.shape[0])))
 
 
 def calc_decisive_boundary(w: np.ndarray, w_n: float, x: float):
@@ -94,6 +90,24 @@ def calc_decisive_boundaries(w: np.ndarray, w_n: float, xs: np.ndarray):
     return v_calc_bound(w, w_n, xs)
 
 
+def calc_decisive_function(w: np.ndarray, w_n: float, x: np.ndarray):
+    return w[0, 0] * x[0] + w[1, 0] * x[1] + w_n
+
+
+def calc_decisive_function(x: np.ndarray, kernel_func, w_n):
+    return kernel_func(x) + w_n
+
+
+def calc_decisive_functions(w: np.ndarray, w_n: float, xs: np.ndarray):
+    v_calc_dec_func = np.vectorize(calc_decisive_function,
+                                   excluded=[0], signature='(),(n)->()')
+    return v_calc_dec_func(w, w_n, np.reshape(xs.T, newshape=(xs.shape[1], xs.shape[0])))
+
+
+def calc_decisive_functions(xs: np.ndarray, kernel_func, w_n):
+    return np.array([calc_decisive_function(xs[:, i], kernel_func, w_n) for i in range(xs.shape[1])])
+
+
 def classify_vectors(w: np.ndarray, w_n: float, xs: np.ndarray, class_type: int, another_class_type: int):
     ds = calc_decisive_functions(w, w_n, xs)
     if class_type == 0:
@@ -101,38 +115,80 @@ def classify_vectors(w: np.ndarray, w_n: float, xs: np.ndarray, class_type: int,
     return np.where(ds > 0, class_type, another_class_type)
 
 
-def painter(title: str, x_1, x_2, name_ys: dict, isDiffBayes: bool = False, printErrors: bool = False):
+def classify_vectors_solveqp(xs: np.ndarray, kernel_func, w_n: float, class_type: int, another_class_type: int):
+    ds = calc_decisive_functions(xs, kernel_func, w_n)
+    if class_type == 0:
+        return np.where(ds < 0, class_type, another_class_type)
+    return np.where(ds > 0, class_type, another_class_type)
+
+
+def classify_vectors_svc(xs: np.ndarray, class_type: int, another_class_type: int):
+    ds = sklearn_svm.predict(xs.T)
+    if class_type == 0:
+        return np.where(ds < 0, class_type, another_class_type)
+    return np.where(ds > 0, class_type, another_class_type)
+
+
+def painter(
+        title: str, x_1, x_2, name_ys: dict,
+        isDiffBayes: bool = False, printErrors: bool = False,
+        delay_show: bool = False, separate_plot=False):
+    if separate_plot:
+        plt.figure()
     plt.title(title)
     plt.plot(x_1[0], x_1[1], c="blue", marker='.', linestyle='none')
     plt.plot(x_2[0], x_2[1], c="orange", marker='.', linestyle='none')
     colors = ["green", "red", "magenta", "pink", "black", "yellow", "cyan"]
     i = 0
+    proxy, legends = [], []
     for name in name_ys:
-        for j in range(len(name_ys[name]["xs"])):
-            if j == 0:
-                plt.plot(name_ys[name]["xs"][j], name_ys[name]["ys"][j],
-                         c=colors[i], label=name)
+        if ('yy' in name_ys[name]):
+            cs = plt.contour(name_ys[name]["xx"], name_ys[name]["yy"], name_ys[name]["ds"],
+                             levels=[-1, 0, 1], colors=[colors[i], colors[i], colors[i]])
+            h1, _ = cs.legend_elements()
+            proxy.append(h1[0])
+            legends.append(name)
+            # proxy.append(plt.Rectangle(
+            #     (0, 0), 1, 1, fc=cs.collections[0].get_facecolor()[0]))
+            # legends.append(name)
+
+        else:
+            for j in range(len(name_ys[name]["xs"])):
+                if j == 0:
+                    plt.plot(name_ys[name]["xs"][j], name_ys[name]["ys"][j],
+                             c=colors[i], label=name)
                 continue
             plt.plot(name_ys[name]["xs"][j], name_ys[name]["ys"][j],
                      c=colors[i])
         if ('support_vectors' in name_ys[name]) and (name_ys[name]['support_vectors'] is not None):
+            marker = 'X'
             plt.plot(name_ys[name]['support_vectors']["class_0"][0, :],
                      name_ys[name]['support_vectors']["class_0"][1, :],
-                     c="blue", marker='X', linestyle='none')
+                     c="blue", marker=marker, linestyle='none')
             plt.plot(name_ys[name]['support_vectors']["class_1"][0, :],
                      name_ys[name]['support_vectors']["class_1"][1, :],
-                     c="orange", marker='X', linestyle='none')
+                     c="orange", marker=marker, linestyle='none')
         i += 1
         if printErrors:
             p_0, p_1 = name_ys[name]["p0"], name_ys[name]["p1"]
-            print(name, f"\n\tВероятности ошибочной классификации: \tp_0: {p_0}\tp_1: {p_1}")
+            print(
+                name, f"\n\tВероятности ошибочной классификации: \tp_0: {p_0}\tp_1: {p_1}")
 
     mng = plt.get_current_fig_manager()
     mng.window.state('zoomed')
-    plt.xlim([-4, 4])
-    plt.xlim([-4, 4])
-    plt.legend()
-    plt.show()
+    scale = 1.5
+    xlim_min, xlim_max = np.min([x_1[0], x_2[0]]) - \
+        scale, np.max([x_1[0], x_2[0]]) + scale
+    ylim_min, ylim_max = np.min([x_1[1], x_2[1]]) - \
+        scale, np.max([x_1[1], x_2[1]]) + scale
+    plt.xlim([xlim_min, xlim_max])
+    plt.ylim([ylim_min, ylim_max])
+    if len(proxy) == 0:
+        plt.legend()
+    else:
+        plt.legend(proxy, legends)
+    if delay_show is False:
+        plt.show()
 
 
 def get_separating_hyperplane_top(xs: np.ndarray, w: np.ndarray):
@@ -146,10 +202,10 @@ def get_separating_hyperplane_bottom(xs: np.ndarray, w: np.ndarray):
 if __name__ == "__main__":
     res = dict()
     config = {
-        "generate": True,
+        "generate": False,
         "lssave": False,
         "lissave": False,
-        "checkpoints": [1]
+        "checkpoints": [3]
     }
     # ==================== Синтез ЛР и ЛНР выборок двух классов ==================== #
     # 1. Синтезировать линейно разделимые выборки для двух классов двумерных случайных векторов в количестве N=100 в каждом классе
@@ -163,12 +219,11 @@ if __name__ == "__main__":
     # - метод sklearn.svm.SVC библиотеки scikit-learn
     # сопоставить решения из п.(б) с решением методом sklearn.svm.LinearSVC
     if 1 in config["checkpoints"]:
-        training_sample_ls = generate_training_sample(S_1, S_2)
-        training_sample_ls_2 = generate_training_sample_2(S_1, S_2)
+        # training_sample_ls = generate_training_sample(S_1, S_2)
+        training_sample_ls = generate_training_sample_2(S_1, S_2)
         # print("Fisrt", np.unique(training_sample_ls).shape)
         # print("Second", np.unique(training_sample_ls_2).shape)
 
-        training_sample_ls = training_sample_ls_2
         lssvm = LSSVM(training_sample_ls)
         ys = calc_decisive_boundaries(lssvm.w, lssvm.w_n, xs)
         w, w_n = lssvm.w, lssvm.w_n
@@ -220,15 +275,15 @@ if __name__ == "__main__":
             }
         })
 
+        # painter(
+        #     "Линейно разделимые классы", S_1, S_2, {"lssvm": res["LS"]["lssvm"]}, printErrors=True
+        # )
+        # painter(
+        #     "Линейно разделимые классы", S_1, S_2, {"sklearn_svm": res["LS"]["sklearn_svm"]}, printErrors=True
+        # )
         painter(
-            "Линейно разделимые классы", S_1, S_2, {"lssvm": res["LS"]["lssvm"]}, printErrors=True
+            "Линейно разделимые классы", S_1, S_2, res["LS"], printErrors=True
         )
-        # painter(
-        #     "Линейно разделимые классы", S_1, S_2, {}
-        # )
-        # painter(
-        #     "Линейно разделимые классы", S_1, S_2, res["LS"]
-        # )
 
     # ==================== SVM для ЛНР классов ==================== #
     # 3. Построить линейный классификатор по SVM на выборке с линейно неразделимыми классами.
@@ -237,11 +292,11 @@ if __name__ == "__main__":
     #       Указать решения для C=1/10, 1, 10 и подобранно самостоятельно «лучшим коэффициентом».
     # - метод sklearn.svm.SVC библиотеки scikit-learn
     if 2 in config["checkpoints"]:
-        training_sample_ls = generate_training_sample_2(IS_1, IS_2)
-        Cs = [10]
+        training_sample_lis = generate_training_sample_2(IS_1, IS_2)
+        Cs = [40]
 
         for C in Cs:
-            lissvm = LISSVM(training_sample_ls, C)
+            lissvm = LISSVM(training_sample_lis, C)
             w, w_n = lissvm.w, lissvm.w_n
             ys = calc_decisive_boundaries(w, w_n, xs)
             res[f"LIS_{C}"] = {
@@ -252,44 +307,17 @@ if __name__ == "__main__":
                     },
                     "xs": [xs, get_separating_hyperplane_top(xs, w), get_separating_hyperplane_bottom(xs, w)],
                     "ys": [ys, ys, ys],
-                    "p0": calc_alpha(classify_vectors(lissvm.w, lissvm.w_n, S_1, 0, 1), 1),
-                    "p1": calc_alpha(classify_vectors(lissvm.w, lissvm.w_n, S_2, 1, 0), 0)
+                    "p0": calc_alpha(classify_vectors(w, w_n, IS_1, 0, 1), 1),
+                    "p1": calc_alpha(classify_vectors(w, w_n, IS_2, 1, 0), 0)
                 }
             }
-            # print("Support vectors count: ", lissvm.support_vectors.shape)
-            # print("Support vectors count class 0: ",
-            #       lissvm.support_vectors[0:2, lissvm.support_vectors[3, :] == -1].shape[1])
-            # print("Support vectors count class 1: ",
-            #       lissvm.support_vectors[0:2, lissvm.support_vectors[3, :] == 1].shape[1])
-            # print("Support vectors indexes: ")
-            # stry = ''
-            # for i in range(lissvm.support_vectors_indexes.shape[0]):
-            #     if lissvm.support_vectors_indexes[i]:
-            #         stry += f" {i};"
-            # print("\t", stry)
-            # print("Support vectors: \n")
-            # for i in range(lissvm.support_vectors.shape[1]):
-            #     print(
-            #         i, ": ", lissvm.support_vectors[0, i], lissvm.support_vectors[1, i])
-            # print("Training sample: \n")
-            # for i in range(training_sample_ls.shape[1]):
-            #     if lissvm.lyambdas[i] >= 0.01:
-            #         print(
-            #             i, ": ", training_sample_ls[0, i], training_sample_ls[1, i], "lyambda: ", lissvm.lyambdas[i])
-
-            # print("Training sample: \n")
-            # for i in range(training_sample_ls.shape[1]):
-            #     print(
-            #         i, ": ", training_sample_ls[0, i], training_sample_ls[1, i], "lyambda: ", lissvm.lyambdas[i])
-            # print(np.unique(IS_1).shape)
-            # print(np.unique(IS_2).shape)
 
             sklearn_svm = svm.SVC(kernel='linear', C=C)
             sklearn_svm.fit(
-                training_sample_ls[0:2, :].T, training_sample_ls[2, :])
+                training_sample_lis[0:2, :].T, training_sample_lis[2, :])
             w = sklearn_svm.coef_.T
             w_n = sklearn_svm.intercept_[0]
-            support_vectors = training_sample_ls[:, sklearn_svm.support_]
+            support_vectors = training_sample_lis[:, sklearn_svm.support_]
             ys = calc_decisive_boundaries(w, w_n, xs)
             res[f"LIS_{C}"].update({
                 "sklearn_svm": {
@@ -299,74 +327,119 @@ if __name__ == "__main__":
                     },
                     "xs": [xs, get_separating_hyperplane_top(xs, w), get_separating_hyperplane_bottom(xs, w)],
                     "ys": [ys, ys, ys],
-                    "p0": calc_alpha(classify_vectors(w, w_n, S_1, 0, 1), 1),
-                    "p1": calc_alpha(classify_vectors(w, w_n, S_2, 1, 0), 0)
+                    "p0": calc_alpha(classify_vectors(w, w_n, IS_1, 0, 1), 1),
+                    "p1": calc_alpha(classify_vectors(w, w_n, IS_2, 1, 0), 0)
                 }
             })
 
             painter(
-                f"Линейно разделимые классы. С = {C}", IS_1, IS_2, res[f"LIS_{C}"]
+                f"Линейно неразделимые классы. С = {C}", IS_1, IS_2, {"lissvm": res[f"LIS_{C}"]["lissvm"]}, printErrors=True, delay_show=True
             )
-            print()
+            # painter(
+            #     f"Линейно неразделимые классы. С = {C}", IS_1, IS_2, res[f"LIS_{C}"], printErrors=True, delay_show=True
+            # )
+        plt.show()
 
+    # ==================== SVM c ЯДРОМ для ЛНР классов ==================== #
     # 4. Построить классификатор по SVM, разделяющий линейно неразделимые классы.
     # Использовать:
     # - задачу (14) и метод решения квадратичных задач,
     #       Исследовать решение для различных значений параметра C=1/10, 1, 10 и различных ядер из таблицы 1
     # - метод sklearn.svm.SVC.
     if 3 in config["checkpoints"]:
-        training_sample_ls = generate_training_sample(IS_1, IS_2)
-        Cs = [0.1, 1, 10]
-        params = {"d": 3, "c": 1}
-
-        for C in Cs:
-            klissvm = KLISSVM(training_sample_ls, C,
-                              kernel="polynomial", params=params)
-            ys = calc_decisive_boundaries(klissvm.w, klissvm.w_n, xs)
-            res[f"KLIS_{C}"] = {
-                "klissvm": {
-                    "support_vectors": {
-                        "class_0": klissvm.support_vectors[0:2, klissvm.support_vectors[3, :] == -1],
-                        "class_1": klissvm.support_vectors[0:2, klissvm.support_vectors[3, :] == 1]
-                    },
-                    "xs": [xs, xs, xs],
-                    "ys": [ys, get_separating_hyperplane_top(ys, klissvm.w), get_separating_hyperplane_bottom(ys, klissvm.w)],
-                    "p0": calc_alpha(classify_vectors(klissvm.w, klissvm.w_n, S_1, 0, 1), 1),
-                    "p1": calc_alpha(classify_vectors(klissvm.w, klissvm.w_n, S_2, 1, 0), 0)
-                }
-            }
-
-        y = np.linspace(-5, 5, N * 2)
-        x = np.linspace(-5, 5, N * 2)
-        # create cooordinate grid
+        training_sample_lis = generate_training_sample_2(IS_1, IS_2)
+        x_1, x_2 = IS_1, IS_2
+        scale = 1.5
+        xlim_min, xlim_max = np.min([x_1[0], x_2[0]]) - \
+            scale, np.max([x_1[0], x_2[0]]) + scale
+        ylim_min, ylim_max = np.min([x_1[1], x_2[1]]) - \
+            scale, np.max([x_1[1], x_2[1]]) + scale
+        y = np.linspace(ylim_min, ylim_max, N * 2)
+        x = np.linspace(xlim_min, xlim_max, N * 2)
         xx, yy = np.meshgrid(x, y)
         xy = np.vstack((xx.ravel(), yy.ravel())).T
 
-    # z0, z1 = S_1, S_2
-    # x = np.concatenate((z0, z1), axis=1).T
-    # yldeal = np.zeros(shape=2*N)
-    # yldeal[N: 2*N] = 1
-    # clf = svm.LinearSVC()
-    # clf.fit(x, yldeal)
+        Cs = [15]
+        # ['poly', 'sigmoid', 'rbf', 'rbf_gauss']
+        kernels = ['poly']
+        params = {
+            "d": 4, "c_p": 1,
+            "g_s": 0.08, "c_s": -0.6,
+            "g_r": 1, "g_r_gauss": 1 / (2 * np.var(np.sqrt(training_sample_lis ** 2 + training_sample_lis ** 2)))
+        }
+        lonely_mode = True
 
-    # x1, x2 = -3, 3
+        for kernel in kernels:
+            for C in Cs:
+                klissvm = KLISSVM(training_sample_lis, C,
+                                  kernel=kernel, params=params)
+                res[f"KLIS_{kernel}_{C}"] = {
+                    "klissvm": {
+                        "support_vectors": {
+                            "class_0": klissvm.support_vectors[0:2, klissvm.support_vectors[2, :] == -1],
+                            "class_1": klissvm.support_vectors[0:2, klissvm.support_vectors[2, :] == 1]
+                        },
+                        "xx": xx,
+                        "yy": yy,
+                        "ds": np.array([klissvm.get_discriminant_kernel(xy[i, :].T) + klissvm.w_n for i in range(xy.shape[0])]).reshape(xx.shape),
+                        "p0": calc_alpha(classify_vectors_solveqp(IS_1, klissvm.get_discriminant_kernel, klissvm.w_n, 0, 1), 1),
+                        "p1": calc_alpha(classify_vectors_solveqp(IS_2, klissvm.get_discriminant_kernel, klissvm.w_n, 1, 0), 0)
+                    }
+                }
 
-    # def get_y(x): return -(clf.coef_[0, 0] *
-    #                        x + clf.intercept_) / clf.coef_[0, 1]
-    # y1, y2 = get_y(x1), get_y(x2)
+                sklearn_svm = None
+                if kernel == 'poly':
+                    sklearn_svm = svm.SVC(kernel=kernel, C=C,
+                                          degree=params["d"], coef0=params["c_p"])
+                if kernel == 'sigmoid':
+                    sklearn_svm = svm.SVC(
+                        kernel=kernel, C=C, coef0=params["c_s"], gamma=params["g_s"])
+                if kernel == 'rbf':
+                    sklearn_svm = svm.SVC(
+                        kernel=kernel, C=C, gamma=params["g_r"])
+                if kernel == 'rbf_gauss':
+                    sklearn_svm = svm.SVC(
+                        kernel='rbf', C=C, gamma=params["g_r_gauss"])
+                sklearn_svm.fit(
+                    training_sample_lis[0:2, :].T, training_sample_lis[2, :])
+                w_n = sklearn_svm.intercept_[0]
+                support_vectors = training_sample_lis[:,
+                                                      sklearn_svm.support_]
+                res[f"KLIS_{kernel}_{C}"].update({
+                    "sklearn_svm": {
+                        "support_vectors": {
+                            "class_0": support_vectors[0:2, support_vectors[2, :] == -1],
+                            "class_1": support_vectors[0:2, support_vectors[2, :] == 1]
+                        },
+                        "xx": xx,
+                        "yy": yy,
+                        "ds": sklearn_svm.decision_function(xy).reshape(xx.shape),
+                        "p0": calc_alpha(classify_vectors_svc(IS_1, 0, 1), 1),
+                        "p1": calc_alpha(classify_vectors_svc(IS_2, 0, 1), 0)
+                    }
+                })
 
-    # plt.plot(z0[0], z0[1], color='red', marker='.', linestyle='none')
-    # plt.plot(z1[0], z1[1], color='blue', marker='.', linestyle='none')
-    # plt.plot([x1, x2], [y1, y2], color='green', marker='X', linestyle='solid')
-    # plt.show()
+                if lonely_mode:
+                    painter(
+                        f"Линейно неразделимые классы. С = {C}. Ядро - {kernel_dict[kernel]}",
+                        IS_1, IS_2, res[f"KLIS_{kernel}_{C}"],
+                        delay_show=True,
+                        separate_plot=True,
+                        printErrors=True
+                    )
+        if lonely_mode:
+            plt.show()
 
-    # yPredicted = clf.predict(x)
-    # yDif = np.abs(yldeal - yPredicted)
-    # Nerr = np.sum(yDif)
-    # yDif01 = yDif[0:N]
-    # yDif10 = yDif[N:2*N]
-    # N01 = np.sum(yDif01)
-    # N10 = np.sum(yDif10)
-    # print(Nerr/N)
-    # print(N01/N)
-    # print(N10/N)
+        if 1 == 0:
+            fig = plt.figure()
+            plot_num = 1
+            for kernel in kernels:
+                fig.add_subplot(2, 2, plot_num)
+                for C in Cs:
+                    painter(
+                        f"С = {C}. Ядро - {kernel_dict[kernel]}",
+                        IS_1, IS_2, res[f"KLIS_{kernel}_{C}"],
+                        delay_show=True
+                    )
+                plot_num += 1
+            plt.show()

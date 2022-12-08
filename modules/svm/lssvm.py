@@ -6,7 +6,7 @@ class LSSVM(SVM):
     def __init__(self, training_sample: np.ndarray):
         super().__init__(
             training_sample,
-            threshold=1e-04
+            threshold=0.0001
         )
 
     def get_q(self):

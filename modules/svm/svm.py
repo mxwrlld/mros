@@ -6,38 +6,28 @@ class SVM:
     def __init__(self, training_sample, threshold):
         # m - объём обучающей выборки, training sample == zss
         self.m = training_sample.shape[1]
-        P = self.calc_P(training_sample)
-        # np.save("data\Ps\P", P)
-        # P = np.loadtxt("data\Ps\P.txt")
-        A = self.calc_A(training_sample)
-        # np.save("data\Ps\A", A)
-        # A = np.loadtxt("data\Ps\A.txt")
         self.lyambdas = solve_qp(
-            P,
+            self.calc_P(training_sample),
             self.get_q(),
             self.get_G(),
             self.get_h(),
-            A,
+            self.calc_A(training_sample),
             self.get_b(),
             solver='cvxopt'
         )
-
+        np.save("data\\test\lm", self.lyambdas)
         # Получение индексов векторов, претендующих на опорные
-        support_vectors_indexes = np.where(
+        self.support_vectors_indexes = np.where(
             self.lyambdas > threshold, True, False)
-
-        # dif = support_vectors_indexes_2 ^ support_vectors_indexes
-        # print(dif)
-
-        self.support_vectors_indexes = support_vectors_indexes
-        self.support_vectors = training_sample[:, support_vectors_indexes]
+        np.save("data\\test\svim", self.support_vectors_indexes)
+        self.support_vectors = training_sample[:, self.support_vectors_indexes]
         self.w = self.calc_w(
-            self.support_vectors, self.lyambdas[support_vectors_indexes])
+            self.support_vectors, self.lyambdas[self.support_vectors_indexes])
         self.w_n = self.calc_w_n()
-        print("Support vectors count: ", self.support_vectors.shape[1])
-        print("Support vectors: ", self.support_vectors)
-        print("W: ", self.w)
-        print("W_n: ", self.w_n)
+        # print("Support vectors count: ", self.support_vectors.shape[1])
+        # print("Support vectors: ", self.support_vectors)
+        # print("W: ", self.w)
+        # print("W_n: ", self.w_n)
 
     def calc_P(self, zs: np.ndarray):
         P = np.ndarray(shape=(self.m, self.m))
