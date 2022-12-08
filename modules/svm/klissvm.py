@@ -10,7 +10,7 @@ class KLISSVM(SVM):
         self.params = params
         super().__init__(
             training_sample,
-            threshold=1e-4
+            threshold=0.00001
         )
 
     def calc_P(self, zs: np.ndarray):

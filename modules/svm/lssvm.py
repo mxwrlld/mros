@@ -10,7 +10,6 @@ class LSSVM(SVM):
         )
 
     def get_q(self):
-        # return np.ones(shape=(self.m, 1)) * (- 1)
         return np.full((self.m, 1), -1, dtype=np.double)
 
     def get_G(self):

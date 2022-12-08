@@ -10,7 +10,7 @@ from modules.svm.klissvm import KLISSVM
 
 # ==================== Параметры ==================== #
 N = 100
-B_1, B_2 = const.B_1, const.B_2
+B_1, B_2 = const.B_1, const.B_3
 M_1_ls, M_2_ls = const.M_1_ls, const.M_2_ls
 M_1_lis, M_2_lis = const.M_1_lis, const.M_2_lis
 xs = np.linspace(-3, 3, N)
@@ -168,7 +168,7 @@ def painter(
         if printErrors:
             p_0, p_1 = name_ys[name]["p0"], name_ys[name]["p1"]
             print(
-                name, f"\n\tВероятности ошибочной классификации: \tp_0: {p_0}\tp_1: {p_1}")
+                name, f"\n\tp_0: {p_0}\tp_1: {p_1}")
 
     mng = plt.get_current_fig_manager()
     mng.window.state('zoomed')
@@ -188,11 +188,11 @@ def painter(
 
 
 def get_separating_hyperplane_top(xs: np.ndarray, w: np.ndarray):
-    return xs - 1 / w[0, 0]
+    return xs + 1 / w[0, 0]
 
 
 def get_separating_hyperplane_bottom(xs: np.ndarray, w: np.ndarray):
-    return xs + 1 / w[0, 0]
+    return xs - 1 / w[0, 0]
 
 
 if __name__ == "__main__":
@@ -217,8 +217,6 @@ if __name__ == "__main__":
     if 1 in config["checkpoints"]:
         # training_sample_ls = generate_training_sample(S_1, S_2)
         training_sample_ls = generate_training_sample_2(S_1, S_2)
-        # print("Fisrt", np.unique(training_sample_ls).shape)
-        # print("Second", np.unique(training_sample_ls_2).shape)
 
         lssvm = LSSVM(training_sample_ls)
         ys = calc_decisive_boundaries(lssvm.w, lssvm.w_n, xs)

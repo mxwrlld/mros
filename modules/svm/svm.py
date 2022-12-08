@@ -54,5 +54,4 @@ class SVM:
         if self.support_vectors.shape[1] != 0:
             return np.mean(
                 self.support_vectors[2] - self.w.T @ self.support_vectors[0:2])
-            # return (support_vectors[3, -1] - (self.w.T @ support_vectors[0:2, -1]))[0]
         return None
