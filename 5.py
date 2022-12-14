@@ -6,7 +6,7 @@ from utils.vector_generator import generate_norm_vector
 
 
 # ==================== Параметры ==================== #
-N = 50
+N = 100
 count_of_vectors = 5
 B_1, B_2, B_3 = const.B_1, const.B_2, const.B_3
 M_1, M_2, M_3 = const.M_1, const.M_2, const.M_3
@@ -48,32 +48,47 @@ def painter(title: str, xs: list, lonely: bool = True):
         plt.show()
 
 
-def parsen(train_vectors_by_classes: np.ndarray, test_sample: np.ndarray, Bs: np.ndarray) -> int:
-    # classes = np.array([np.zeros(shape=(2, 1)) for _vector in train_vectors])
+def calc_parsen_kernel(x: np.ndarray, x_i: np.ndarray, B: np.ndarray, e_power_multiplier, const):
+    power =  e_power_multiplier * (x - x_i) @ np.linalg.inv(B) @ (x - x_i)
+    return const * np.exp(power)
+
+def parsen_classification(x, train_vectors_by_classes, Bs, count_of_classes, count_of_train_vectors, vcalc_parsen_kernel):
+    f = np.zeros(count_of_classes)
+    P = np.zeros(count_of_classes)
+    k = 0.3 
+    
+    for j in range(count_of_classes):
+        vectors_by_class = train_vectors_by_classes[j]
+        _class_dim = vectors_by_class.shape[1]  # -- N
+        h = _class_dim ** (- k / 2)   # -- (11)
+        const = (2 * np.pi) * (h ** (- 2)) * \
+            (np.linalg.det(Bs[j]) ** (- 0.5))
+        exp_sequence = []
+        e_power_multiplier = (- 0.5 * (h ** (- 2)))
+        exp_sequence = vcalc_parsen_kernel(x, vectors_by_class.T, Bs[j], e_power_multiplier, const)
+        f[j] = np.average(exp_sequence)
+        P[j] = _class_dim
+
+    return np.argmax((P / count_of_train_vectors) * f)
+
+def parsen(train_vectors_by_classes: np.ndarray, test_sample: np.ndarray, Bs: np.ndarray):
     classification_res = np.ndarray(shape=test_sample.shape[1])
     count_of_classes = len(train_vectors_by_classes)
     count_of_train_vectors = np.sum([train_vectors_by_classes[i].shape[1]
                                      for i in range(count_of_classes)])
-    f = np.zeros(count_of_classes)
-    P = np.zeros(count_of_classes)
-    k = 0.25
-    for i in range(test_sample.shape[1]):
-        x = test_sample[:, i]
-        for j in range(count_of_classes):
-            vectors_by_class = train_vectors_by_classes[j]
-            _class_dim = vectors_by_class.shape[1]  # -- N
-            h = _class_dim ** (- k / 2)   # -- (11)
-            const = (2 * np.pi) * (h ** (- 2)) * \
-                (np.linalg.det(Bs[j]) ** (- 0.5))
-            exp_sequence = []
-            for x_i in vectors_by_class.T:
-                # (10)
-                power = (- 0.5 * (h ** (- 2))) * \
-                    (x - x_i) @ np.linalg.inv(Bs[j]) @ (x - x_i)
-                exp_sequence.append(const * np.exp(power))
-            f[j] = np.average(exp_sequence)
-            P[j] = _class_dim
-        classification_res[i] = np.argmax((P / count_of_train_vectors) * f)
+
+    vcalc_parsen_kernel = np.vectorize(
+        calc_parsen_kernel,
+        signature='(n), (), ()->()',
+        excluded=[0, 2]
+    )
+    vparsen_classification = np.vectorize(
+        parsen_classification,
+        signature='(n), (), (), ()->()',
+        excluded=[1, 2]
+    )
+
+    classification_res = vparsen_classification(test_sample.T, train_vectors_by_classes, Bs, count_of_classes, count_of_train_vectors, vcalc_parsen_kernel)
 
     return classification_res
 
@@ -88,21 +103,32 @@ def sample_2_classified_sample(sample: np.ndarray, labels: np.ndarray) -> dict:
 
 
 def calc_errors(initial_vectors_by_classes, classified_vectors_by_classes):
-    error_vectors = []
+    error_vectors = None
+    vis_classif_error_vector = np.vectorize(
+            lambda initial_vector, classified_vectors: (
+                initial_vector == classified_vectors).any() == False,
+            signature='(n)->()',
+            excluded=[1]
+    )
+
     for _class in range(len(initial_vectors_by_classes)):
         initial_vectors_by_class = initial_vectors_by_classes[_class].T
         classified_vectors_by_class = classified_vectors_by_classes[_class].T
 
-        for initial_vector in initial_vectors_by_class:
-            if initial_vector not in classified_vectors_by_class:
-                error_vectors.append(initial_vector)
-    error_vectors = np.array(error_vectors)
-    return error_vectors.reshape((2, error_vectors.shape[0]))
+        error_vectors_indexes = vis_classif_error_vector(initial_vectors_by_class,
+                                classified_vectors_by_class)
+        if error_vectors is None:
+            error_vectors = initial_vectors_by_classes[_class][:, error_vectors_indexes]
+        else: 
+            error_vectors = np.concatenate([error_vectors, initial_vectors_by_classes[_class][:, error_vectors_indexes]], axis=1)
+    
+
+    return error_vectors
 
 
 if __name__ == "__main__":
     config = {
-        "generate": False,
+        "generate": True,
         "save": False,
         "checkpoints": [1]
     }
@@ -143,13 +169,19 @@ if __name__ == "__main__":
         vectors_by_classes = sample_2_classified_sample(test_sample, labels)
         errors = calc_errors(test_vectors[2:], vectors_by_classes)
 
+        # ==================== Демонстрация классификации  ==================== #
         fig = plt.figure()
         fig.add_subplot(1, 2, 1)
         painter("Тестовая выборка", test_vectors[2:], lonely=False)
         fig.add_subplot(1, 2, 2)
         painter("Парзен", vectors_by_classes, lonely=False)
-        plt.scatter(errors[0, :], errors[1, :], facecolors='none', s=50,
-                    edgecolors='purple', label="Wrong classified vectors", alpha=0.7)
+        plt.scatter(errors[0, :], errors[1, :], facecolors='none', s=27,
+                    edgecolors='black', label="Неверная классификация", alpha=1, linewidths=1.5)
         mng = plt.get_current_fig_manager()
         mng.window.state('zoomed')
+        plt.legend()
         plt.show()
+        
+        # Оценка эмпирического риска
+        R = errors.shape[1] / (test_sample.shape[0] * N)
+        print(f"Оценка суммарной вероятности ошибочной классификации: ", R)
