@@ -47,3 +47,35 @@ def d_lj_different_B(xs: np.ndarray, B_i: np.ndarray, B_j: np.ndarray, M_i: np.n
         y2 = ((- b + np.sqrt(D)) / (2 * a))[0, 0]
         Y1[i], Y2[i] = y1, y2
     return Y1, Y2
+
+
+def calc_decisive_function(
+        x: np.ndarray, B: np.ndarray, M: np.ndarray, P: float):
+    return math.log(P) - math.log(np.sqrt(la.det(B))) - \
+        0.5 * (x - M).T @ la.inv(B) @ (x - M)
+
+
+def bayes_classification():
+    return 0
+
+
+def calc_class_of_vector(
+        x: np.ndarray, Bs: list, Ms: list):
+    count_of_classes = len(Bs)
+    ds = [
+        calc_decisive_function(
+            x.reshape((2, 1)), Bs[i], Ms[i], 1 / count_of_classes)
+        for i in range(count_of_classes)
+    ]
+    return np.argmax(ds)
+
+
+def bayes(test_sample: np.ndarray, Bs: list, Ms: list):
+    vcalc_class_of_vector = np.vectorize(
+        calc_class_of_vector,
+        signature='(n) -> ()',
+        excluded=[1, 2]
+    )
+
+    classification_res = vcalc_class_of_vector(test_sample.T, Bs, Ms)
+    return classification_res

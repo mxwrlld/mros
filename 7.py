@@ -2,7 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import utils.constants as const
+from utils.helpers import sample_2_clustered_sample
 from utils.vector_generator import generate_norm_vector
+from modules.clusterizers.maximin import maximin_clustering
+from modules.clusterizers.kmeans import kmeans_clustering
 
 # ==================== Параметры ==================== #
 N = 50
@@ -11,11 +14,6 @@ B_1 = const.B_4
 M_1, M_2, M_3, M_4, M_5 = const.M_1, const.M_2, const.M_3, const.M_4, const.M_5
 xs = np.linspace(-3, 3, N)
 save_load_path = "data\\7"
-# Результат кластеризатора:
-#   - число итераций, массивы типичного расстояния, максиминного расстояния
-#   Номер итерации:
-#       центры,
-#       метки векторов,
 
 
 def get_vectors(
@@ -68,101 +66,6 @@ def clusters_painter(classes_vectors: dict, centers: np.ndarray, lonely: bool = 
         plt.show()
 
 
-def sample_2_clustered_sample(sample: np.ndarray, labels: np.ndarray, count_of_clusters: int) -> dict:
-    classes_vectors = dict()
-    for i in range(count_of_clusters):
-        class_indexes = np.where(labels == i, True, False)
-        classes_vectors[str(i)] = sample[:, class_indexes]
-    return classes_vectors
-
-
-def calc_euclidean_distance(x: np.ndarray, y: np.ndarray):
-    return np.linalg.norm(x - y)
-
-
-def calc_euclidean_distances(sample: np.ndarray, y: np.ndarray, centers_indexes: list = []):
-    return [calc_euclidean_distance(sample[:, i], y)
-            if i not in centers_indexes
-            else "-inf"
-            for i in range(sample.shape[1])]
-
-
-def calc_typical_distance(centers: np.ndarray):
-    part = 0.5
-    distances = [calc_euclidean_distance(centers[:, i], centers[:, j])
-                 for i in range(centers.shape[1])
-                 for j in range(i, centers.shape[1])
-                 if i != j]
-
-    L = centers.shape[1]
-    return part * np.sum(distances) * (2 / ((L)*(L - 1)))
-
-
-def get_first_center(sample: np.ndarray):
-    # Нахождение центра первого кластера (C_0),
-    # как наиболее удалённого вектора от среднего всех векторов
-    average = np.average(sample, axis=1)
-    distances = calc_euclidean_distances(sample, average)
-    C_0_index = np.argmax(distances)
-    C_0 = sample[:, C_0_index]
-    return C_0, C_0_index
-
-
-def get_second_center(sample: np.ndarray, C_0: np.ndarray):
-    # Нахождение центра второго кластера (C_1),
-    # как наиболее удалённого вектора от центра первого кластера
-    # distances = calc_distances(sample, C_0)
-    distances = [calc_euclidean_distance(
-        C_0, sample[:, i]) for i in range(sample.shape[1])]
-    C_1_index = np.argmax(distances)
-    C_1 = sample[:, C_1_index]
-    return C_1, C_1_index
-
-
-def maximin_clustering(sample: np.ndarray):
-    C_0, C_0_index = get_first_center(sample)
-    C_1, C_1_index = get_second_center(sample, C_0)
-
-    centers = np.array([C_0, C_1]).T
-    centers_indexes = [C_0_index, C_1_index]
-    iters_labels = dict()
-    maximin_distances = []
-    typical_distances = []
-
-    count_of_iter = 2
-    while True:
-        distances = np.array(
-            [calc_euclidean_distances(sample, centers[:, i], centers_indexes)
-             for i in range(centers.shape[1])],
-            dtype=float
-        )
-        min_distances = np.min(distances, axis=0)
-        min_distances_indexes = np.argmin(distances, axis=0)
-        iters_labels[count_of_iter] = {
-            "labels": min_distances_indexes,
-            "centers": centers
-        }
-        C_l_index = np.argmax(min_distances)
-        C_l = sample[:, C_l_index].reshape((2, 1))
-
-        # min_c = np.min(calc_euclidean_distances(centers, C_l))
-        maximin_distances.append(min_distances[C_l_index])
-        typical_distance = calc_typical_distance(centers)
-        typical_distances.append(typical_distance)
-        if min_distances[C_l_index] <= typical_distance:
-            break
-        centers = np.append(centers, C_l, axis=1)
-        centers_indexes.append(C_l_index)
-        count_of_iter += 1
-
-    dependency_graph = {
-        "iters_count": count_of_iter + 1,
-        "maximin_distances": maximin_distances,
-        "typical_distances": typical_distances
-    }
-    return iters_labels, dependency_graph
-
-
 def dependency_graph_painter(
         title: str,
         iters_count: int,
@@ -181,60 +84,11 @@ def dependency_graph_painter(
         plt.show()
 
 
-def kmeans_clustering(sample: np.ndarray, k: int, right_clusterization: bool = True):
-    if right_clusterization:
-        centers = sample[:, sample.shape[1] - k:]
-        centers_indexes = [i for i in range(
-            sample.shape[1] - k, sample.shape[1])]
-    else:
-        centers = sample[:, 0:k]
-        centers_indexes = [i for i in range(k)]
-    count_of_iter = 2
-    count_of_changed_class_vectors = []
-    min_distances_indexes = None
-
-    while True:
-        distances = np.array(
-            [calc_euclidean_distances(sample, centers[:, i])
-             for i in range(centers.shape[1])],
-            dtype=float
-        )
-        new_min_distances_indexes = np.argmin(distances, axis=0)
-        classes_vectors = sample_2_clustered_sample(
-            sample, new_min_distances_indexes, k)
-        if count_of_iter > 2:
-            changed = np.where(min_distances_indexes ==
-                               new_min_distances_indexes, 0, 1)
-            count_of_changed_class_vectors.append(np.sum(changed))
-            # Определяются новые центры кластеров
-        i = 0
-        new_centers = np.copy(centers)
-        for _class in classes_vectors:
-            new_centers[:, i] = np.average(classes_vectors[_class], axis=1)
-            i += 1
-
-        if np.array_equal(centers, new_centers):
-            break
-        count_of_iter += 1
-        centers = new_centers
-        min_distances_indexes = new_min_distances_indexes
-
-    dependency_graph = {
-        "iters_count": count_of_iter,
-        "count_of_changed_class_vectors": count_of_changed_class_vectors
-    }
-    clustering_result = {
-        "labels": new_min_distances_indexes,
-        "centers": centers
-    }
-    return clustering_result, dependency_graph
-
-
 if __name__ == "__main__":
     config = {
         "generate": False,
         "save": False,
-        "checkpoints": [2]
+        "checkpoints": [1, 2]
     }
 
     vectors = get_vectors(
@@ -245,8 +99,8 @@ if __name__ == "__main__":
 
     sample = np.concatenate(vectors, axis=1)
 
+    # ==================== Кластеризация sklearn - KMeans (просто проверка) ==================== #
     if 0 in config["checkpoints"]:
-        # ==================== Кластеризация sklearn - KMeans (просто пример) ==================== #
         count_of_clusters = 5
         kmeans = KMeans(n_clusters=count_of_clusters)
         y_predicted = kmeans.fit_predict(sample.T)
@@ -255,6 +109,14 @@ if __name__ == "__main__":
         centers = kmeans.cluster_centers_.T
         clusters_painter(classes_vectors, centers)
 
+    # ==================== Максиминное расстояние ==================== #
+    """
+    Разработать программу кластеризации данных с использованием максиминного
+    алгоритма. В качестве типичного расстояния взять половину среднего расстояния
+    между существующими кластерами. Построить отображение результатов кластеризации 
+    для числа кластеров, начиная с двух. Построить график зависимости максимального 
+    (из минимальных) и типичного расстояний от числа кластеров.
+    """
     if 1 in config["checkpoints"]:
         clustering_result, dependency_graph = maximin_clustering(sample)
         for iter in clustering_result:
@@ -294,6 +156,17 @@ if __name__ == "__main__":
         mng.window.state('zoomed')
         plt.show()
 
+    # ==================== K внутригрупповых средних ==================== #
+    """
+    Разработать программу кластеризации данных с использованием алгоритма K 
+    внутригрупповых средних для числа кластеров равного 3 и 5. Для ситуации 
+    5 кластеров подобрать начальные условия так, чтобы получить два результата: 
+    а) чтобы кластеризация максимально соответствовала первоначальному разбиению 
+    на классы («правильная» кластеризация); б) чтобы кластеризация максимально не 
+    соответствовала первоначальному разбиению на классы («неправильная» кластеризация). 
+    Для всех случаев построить графики зависимости числа векторов признаков, 
+    сменивших номер кластера, от номера итерации алгоритма.
+    """
     if 2 in config["checkpoints"]:
         title = "Зависимость числа векторов признаков, сменивших номер класса от номера итерации"
         count_of_clusters = 3
